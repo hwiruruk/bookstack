@@ -2,13 +2,12 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Book Stack 📚</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
     <style>
-        /* 사용자님의 기존 CSS를 100% 동일하게 유지했습니다. */
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;900&display=swap');
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -207,6 +206,40 @@
             z-index: 999; transition: 0.3s; border: none;
         }
         .help-fab:hover { transform: scale(1.1) rotate(10deg); }
+
+        /* --- 모바일 반응형 디자인 (화면 너비 768px 이하) --- */
+        @media (max-width: 768px) {
+            body { padding: 1.5rem 1rem; }
+            
+            header { flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 2rem; }
+            .header-buttons { width: 100%; overflow-x: auto; padding-bottom: 5px; }
+            #userActions { flex-wrap: nowrap; }
+            .btn { white-space: nowrap; padding: 0.5rem 0.8rem; font-size: 0.7rem; }
+            
+            .hero-section { grid-template-columns: 1fr; margin-bottom: 2rem; gap: 1rem; }
+            .hero-text h2 { display: none; } 
+            .search-box { padding: 0.8rem 1rem; }
+            
+            .stats-container { padding: 1rem 1.5rem; margin-bottom: 2rem; }
+            .stats-container.collapsed { height: 50px; padding: 0.6rem 1.5rem; }
+            .stats-title { font-size: 1.2rem; }
+            
+            .control-panel { flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-bottom: 1.5rem; }
+            
+            .shelf-wrapper { padding: 1.5rem 1rem; border-radius: 8px; margin-bottom: 2rem; }
+            .shelf-header { flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 1.5rem; }
+            .shelf-title-area { width: 100%; }
+            .shelf-actions { width: 100%; justify-content: space-between; display: flex; align-items: center; }
+            
+            .book-grid-display { grid-template-columns: repeat(3, 1fr); gap: 10px; } 
+            
+            #shelfList.horizontal-layout { flex-direction: column; gap: 2rem; }
+            #shelfList.horizontal-layout .shelf-wrapper { min-width: 100%; max-width: 100%; }
+            
+            .shelf-drag-handle { display: none; } 
+            .guide-box { padding: 25px; width: 95%; }
+            .memo-popup { width: 150px; left: auto; right: 0; transform: none; }
+        }
     </style>
 </head>
 <body>
@@ -310,7 +343,6 @@
     </div>
 
     <script>
-        // --- 1. 환경 설정 및 구글 통신망 ---
         const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
         const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
         const SCOPES = 'https://www.googleapis.com/auth/drive.file';
@@ -319,13 +351,11 @@
 
         let tokenClient, gapiInited = false, gisInited = false, fileId = null;
         
-        // --- 2. 원본 상태 변수 유지 ---
         const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
         let shelves = [];
         let selectedItems = [];
-        let shelfExpandedStates = {}; // 각 책장의 펼침 상태 저장 (sIdx: boolean)
+        let shelfExpandedStates = {};
 
-        // --- 3. 초기화 및 로그인 ---
         window.onload = () => {
             gapi.load('client', async () => {
                 await gapi.client.init({ discoveryDocs: DISCOVERY_DOCS });
@@ -365,7 +395,6 @@
         function handleLogin() { tokenClient.requestAccessToken({ prompt: 'consent' }); }
         function handleLogout() { localStorage.removeItem('gapi_token'); location.reload(); }
 
-        // --- 4. 구글 드라이브 대사 작용 (GAS 대체 부분) ---
         async function findOrCreateDataFile() {
             try {
                 const res = await gapi.client.drive.files.list({
@@ -421,12 +450,10 @@
             } catch (err) { document.getElementById('syncStatus').innerText = "Sync Error"; }
         }
 
-        // --- 5. 백업 및 드라이브 열기 (GAS 대체 부분) ---
         async function backupToSheet() {
             if (!gapi.client.getToken()) return alert("로그인이 필요합니다.");
             document.getElementById('syncStatus').innerText = "백업 중...";
             
-            // CSV 데이터를 생성하여 구글 드라이브에 시트로 업로드합니다.
             let csvContent = "\uFEFFStack,Title,Author,Publisher,PubDate,Date,Memo,AladinLink\n";
             shelves.forEach(s => s.books.forEach(b => {
                 const row = [s.title, b.title, b.author, b.publisher||"", b.pubDate||"", b.addedDate, b.memo, b.link]
@@ -459,7 +486,6 @@
             window.open('https://drive.google.com/drive/search?q=' + encodeURIComponent(DATA_FILE_NAME), '_blank');
         }
 
-        // --- 6. 검색 (서버 우회 통신) ---
         async function searchByKeyword() {
             const kw = document.getElementById('kwInput').value;
             if (!kw) return;
@@ -497,7 +523,6 @@
             } catch (e) { console.error("Search Error"); }
         }
 
-        // --- 7. 원본 기능 완벽 유지 (운동 작용) ---
         function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
         
         function toggleStats(e) {
