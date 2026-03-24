@@ -4,478 +4,88 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Stack 📚</title>
-    <!-- 외부 라이브러리 -->
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <!-- Google API & Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;900&display=swap');
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root { 
-            --bg: #050505; 
-            --card-bg: #0f0f0f; 
-            --shelf-color: #1a1a1a;
-            --accent: #00ff88; 
-            --text-main: #ffffff; 
-            --text-sub: #888888;
-        }
-        
-        body { 
-            font-family: 'Pretendard', sans-serif; 
-            background: var(--bg); 
-            color: var(--text-main); 
-            padding: 3rem 1.5rem; 
-            min-height: 100vh;
-        }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-        ::-webkit-scrollbar-track { background: transparent; }
-
-        .container { max-width: 1680px; margin: 0 auto; }
-        
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5rem; }
-        .title-container { display: flex; align-items: center; gap: 12px; }
-        .logo-bar { height: 3px; background: var(--accent); border-radius: 2px; margin-bottom: 4px; }
-        .title { font-size: 1.4rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
-
-        .header-buttons { display: flex; align-items: center; gap: 10px; }
-        .btn { 
-            padding: 0.6rem 1.2rem; border: 1px solid #222; 
-            background: transparent; color: var(--text-sub); border-radius: 4px; 
-            cursor: pointer; font-size: 0.75rem; font-weight: 600; transition: 0.3s;
-        }
-        .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.05); }
-        .btn-new-stack { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.1); }
-        .btn-login { border-color: #4285f4; color: #4285f4; }
-        .btn-login:hover { background: rgba(66, 133, 244, 0.1); }
-
-        .hero-section { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center; margin-bottom: 2rem; }
-        .hero-text h2 { font-size: 3.5rem; font-weight: 900; line-height: 1.1; margin-bottom: 1rem; letter-spacing: -0.02em; }
-        
-        .search-box {
-            background: #111; padding: 1rem 1.5rem; border-radius: 8px;
-            display: flex; align-items: center; border: 1px solid #222;
-        }
-        .search-box input { background: transparent; border: none; color: white; flex: 1; outline: none; font-size: 1rem; }
-        .clear-btn { cursor: pointer; opacity: 0.5; margin-right: 15px; font-weight: bold; font-size: 1.2rem; }
-
-        .stats-container {
-            background: #0f0f0f; border: 1px solid #1a1a1a; padding: 1rem 2rem; border-radius: 12px;
-            margin-bottom: 4rem; position: relative; overflow: hidden; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .stats-container.collapsed { height: 60px; padding: 0.8rem 2rem; cursor: pointer; }
-        .stats-container.collapsed:hover { background: #151515; }
-        .stats-header { display: flex; justify-content: space-between; align-items: center; }
-        .stats-title { font-size: 1.6rem; font-weight: 900; color: var(--accent); letter-spacing: 0.1em; }
-        .stats-toggle-btn { 
-            background: rgba(0, 255, 136, 0.1); border: 1px solid var(--accent); 
-            color: var(--accent); font-size: 0.75rem; padding: 6px 16px; 
-            border-radius: 20px; cursor: pointer; font-weight: 600; transition: 0.3s;
-        }
-        .stats-expand-area { margin-top: 30px; transition: opacity 0.3s; opacity: 1; }
-        .stats-container.collapsed .stats-expand-area { opacity: 0; pointer-events: none; }
-        .stats-content-layout { display: flex; align-items: flex-end; gap: 40px; overflow-x: auto; padding-bottom: 10px; }
-        .total-box { display: flex; flex-direction: column; align-items: center; min-width: 80px; color: #ffffff; padding-bottom: 10px; }
-        .total-num { font-size: 3.4rem; font-weight: 900; line-height: 1; }
-        .total-lbl { font-size: 0.8rem; letter-spacing: 0.2em; margin-top: 5px; opacity: 0.7; }
-        .stats-shelf-list { display: flex; gap: 40px; align-items: flex-end; }
-        .stats-shelf-unit { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
-        .shelf-visual-area { display: flex; gap: 4px; align-items: flex-end; margin-bottom: 15px; min-height: 100px; }
-        .stack-column { display: flex; flex-direction: column-reverse; width: 14px; gap: 2px; }
-        .stack-piece { width: 100%; height: 8px; border-radius: 1px; transition: 0.3s; }
-        .stats-shelf-info { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .stats-shelf-num { font-size: 1.8rem; font-weight: 900; line-height: 1; margin-bottom: 8px; }
-        .stats-shelf-title { font-size: 0.75rem; color: var(--text-sub); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        .shelf-search-wrapper { margin-top: 20px; border-top: 1px solid #222; padding-top: 15px; display: flex; justify-content: flex-end; }
-        .shelf-search-box { 
-            background: #1a1a1a; border: 1px solid #333; padding: 5px 12px; border-radius: 20px; 
-            display: flex; align-items: center; width: 250px;
-        }
-        .shelf-search-box input { background: transparent; border: none; color: #fff; font-size: 0.8rem; outline: none; width: 100%; }
-        .shelf-search-box span { font-size: 0.8rem; opacity: 0.5; }
-
-        .control-panel { display: flex; justify-content: flex-end; align-items: center; gap: 20px; margin-bottom: 2.5rem; padding: 0 10px; }
-        .control-group { display: flex; align-items: center; gap: 12px; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
-        .control-group select { background: #111; color: var(--accent); border: 1px solid var(--accent); font-size: 0.75rem; padding: 5px 10px; border-radius: 4px; cursor: pointer; outline: none; }
-        .control-group input[type="checkbox"] { accent-color: var(--accent); }
-
-        #shelfList { display: flex; flex-direction: column; gap: 5rem; }
-        #shelfList.horizontal-layout { 
-            flex-direction: row; 
-            overflow-x: auto; 
-            padding-bottom: 30px; 
-            align-items: flex-start; 
-            gap: 3rem; 
-            margin-top: 1rem;
-        }
-        #shelfList.horizontal-layout .shelf-wrapper { min-width: 450px; max-width: 450px; flex-shrink: 0; }
-
-        .shelf-wrapper { background: var(--card-bg); border-radius: 12px; padding: 2rem; border: 1px solid #1a1a1a; box-shadow: 0 30px 60px rgba(0,0,0,0.5); position: relative; }
-        .shelf-drag-handle { position: absolute; left: -35px; top: 50%; transform: translateY(-50%); color: #333; font-size: 24px; cursor: grab; opacity: 0; transition: 0.3s; padding: 10px; line-height: 1; }
-        .shelf-wrapper:hover .shelf-drag-handle { opacity: 1; color: var(--accent); }
-        .shelf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; gap: 15px; }
-        .shelf-title-area { display: flex; align-items: center; gap: 12px; flex: 1; position: relative; }
-        .shelf-title { font-size: 1.1rem; font-weight: 900; border: none; background: transparent; outline: none; letter-spacing: 0.05em; color: inherit; flex: 1; }
-        
-        .book-grid-display { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1.5rem; }
-        .book { position: relative; transition: 0.4s cubic-bezier(0.2, 1, 0.3, 1); cursor: pointer; }
-        .book.selected { border-radius: 4px; box-shadow: 0 0 0 3px var(--accent); }
-        .book:hover { transform: translateY(-10px); }
-        .book img { width: 100%; height: auto; border-radius: 4px; box-shadow: 5px 10px 20px rgba(0,0,0,0.6); display: block; }
-        
-        .memo-popup {
-            position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
-            background: rgba(15, 15, 15, 0.95); color: #fff; padding: 10px 14px;
-            border-radius: 8px; font-size: 0.8rem; width: 200px; max-height: 150px;
-            overflow-y: auto; border: 1px solid var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            z-index: 1000; pointer-events: none; opacity: 0; transition: 0.3s;
-            backdrop-filter: blur(5px); line-height: 1.4; text-align: left;
-        }
-        .book:hover .memo-popup, .book-spine:hover .memo-popup, .cell-main:hover .memo-popup { opacity: 1; bottom: 120%; }
-
-        .memo-indicator { position: absolute; bottom: 8px; right: 8px; z-index: 5; font-size: 14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); pointer-events: none; }
-        .book-delete { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.2); width: 24px; height: 24px; cursor: pointer; font-size: 10px; display: none; z-index: 10; border-radius: 50%; color: #ff4444; backdrop-filter: blur(4px); }
-        .book-select-btn { position: absolute; top: 6px; left: -12px; background: #000; border: 1px solid var(--accent); width: 24px; height: 24px; cursor: pointer; font-size: 10px; display: none; z-index: 11; border-radius: 50%; color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-        .book:hover .book-delete, .book:hover .book-select-btn { display: flex; align-items: center; justify-content: center; }
-
-        .book-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 60%; background: linear-gradient(transparent, rgba(0,0,0,0.95) 40%); padding: 10px; opacity: 0; transition: 0.3s; display: flex; flex-direction: column; justify-content: flex-end; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
-        .book:hover .book-overlay { opacity: 1; }
-        .book-hover-title { font-size: 12px; color: white; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .book-hover-author { font-size: 10px; color: #bbb; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .book-date { font-size: 9px; color: var(--accent); font-weight: bold; margin-bottom: 6px; }
-        .book-memo-overlay { background: transparent; border: none; color: #eee; font-size: 11px; resize: none; outline: none; height: 45px; line-height: 1.4; }
-
-        .book-spine-display { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end; padding-bottom: 20px; }
-        .book-spine { width: 38px; height: 220px; position: relative; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; border-radius: 2px; box-shadow: 3px 0 8px rgba(0,0,0,0.5); overflow: hidden; border-left: 1px solid rgba(255,255,255,0.1); }
-        .book-spine:hover { transform: translateY(-10px); z-index: 10; }
-        .spine-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; filter: blur(15px) brightness(0.6); transform: scale(3); z-index: 1; }
-        .spine-content { position: relative; z-index: 2; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); }
-        .spine-text { writing-mode: vertical-rl; text-orientation: mixed; color: white; font-size: 0.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 180px; letter-spacing: 0.05em; text-shadow: 0 0 8px rgba(0,0,0,0.9); }
-
-        .book-table-container { max-height: 600px; overflow-y: auto; }
-        .book-table { width: 100%; border-collapse: collapse; }
-        .book-table tr { display: flex; width: 100%; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .book-table td { padding: 10px 0; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cell-check { width: 35px; text-align: center; cursor: default; }
-        .cell-main { flex: 1; display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
-        .mini-cover { width: 30px !important; height: 42px !important; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
-        .author-tag { color: var(--text-sub); font-size: 0.75rem; margin-left: 8px; }
-        .cell-action { width: 40px; text-align: right; }
-        .table-btn { background: transparent; border: 1px solid #222; color: #555; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-size: 9px; }
-
-        .expand-toggle-wrapper { width: 100%; display: flex; justify-content: center; margin-top: 2rem; }
-        .btn-expand-shelf { background: rgba(255,255,255,0.05); border: 1px dashed #333; color: var(--text-sub); padding: 8px 30px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; transition: 0.3s; }
-        .btn-expand-shelf:hover { background: rgba(0,255,136,0.1); border-color: var(--accent); color: var(--accent); }
-
-        .search-results { display: flex; gap: 1.5rem; overflow-x: auto; padding: 1rem 0; min-height: 200px; }
-        .search-item { width: 100px; flex-shrink: 0; cursor: pointer; opacity: 0.6; transition: 0.3s; }
-        .search-item img { width: 100%; border-radius: 2px; }
-
-        #authOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,5,0.95); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        #authOverlay h2 { margin-bottom: 2rem; font-weight: 900; }
-        
-        #guideModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
-        .guide-box { background: #111; border: 1px solid var(--accent); width: 90%; max-width: 600px; max-height: 80vh; border-radius: 20px; padding: 40px; color: #fff; position: relative; overflow-y: auto; }
-        .help-fab { position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; background: var(--accent); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,255,136,0.3); z-index: 999; border: none; }
-    </style>
 </head>
 <body>
-    <div id="authOverlay">
-        <h2 class="title">Book Stack 📚</h2>
-        <p style="margin-bottom: 2rem; color: var(--text-sub);">나만의 구글 드라이브에 안전하게 기록합니다.</p>
-        <button class="btn btn-login" onclick="handleAuthClick()">Google 계정으로 시작하기</button>
-    </div>
-
     <div class="container">
         <header>
             <div class="title-container">
-                <div style="width: 24px;"><div class="logo-bar" style="width: 100%;"></div><div class="logo-bar" style="width: 60%;"></div><div class="logo-bar" style="width: 85%;"></div></div>
+                <div style="width: 24px;">
+                    <div class="logo-bar" style="width: 100%;"></div>
+                    <div class="logo-bar" style="width: 60%;"></div>
+                    <div class="logo-bar" style="width: 85%;"></div>
+                </div>
                 <h1 class="title">Book Stack<span>.</span></h1>
             </div>
             <div class="header-buttons">
-                <span id="syncStatus">Ready</span>
+                <span id="syncStatus">인증 대기 중...</span>
+                <button id="loginBtn" class="btn btn-new-stack" onclick="handleAuthClick()">Login with Google</button>
+                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleSignoutClick()">Logout</button>
                 <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
-                <button class="btn" onclick="exportJSON()">Export JSON</button>
-                <button class="btn" onclick="handleSignoutClick()">Logout</button>
             </div>
         </header>
 
-        <section class="hero-section">
-            <div class="hero-text">
-                <h2>Book Stack 📚</h2>
-                <div class="search-box">
-                    <input type="text" id="kwInput" placeholder="새로운 책 검색 및 추가..." onkeypress="if(event.keyCode==13) searchAladin()">
-                    <span class="clear-btn" onclick="clearSearch()">✕</span>
-                    <span style="cursor:pointer; opacity:0.7;" onclick="searchAladin()">🔍</span>
+        <section id="mainContent" style="display:none;">
+            <section class="hero-section">
+                <div class="hero-text">
+                    <h2>Book Stack 📚</h2>
+                    <div class="search-box">
+                        <input type="text" id="kwInput" placeholder="새로운 책 검색 및 추가..." onkeypress="if(event.keyCode==13) searchByKeyword()">
+                        <span class="clear-btn" onclick="clearSearch()">✕</span>
+                        <span style="cursor:pointer; opacity:0.7;" onclick="searchByKeyword()">🔍</span>
+                    </div>
                 </div>
-            </div>
-            <div id="searchResults" class="search-results"></div>
-        </section>
+                <div id="searchResults" class="search-results"></div>
+            </section>
 
-        <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
-            <div class="stats-header">
-                <span class="stats-title">STACKS</span>
-                <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
-            </div>
-            <div class="stats-expand-area">
-                <div class="stats-content-layout">
-                    <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
-                    <div class="stats-shelf-list" id="statsShelfList"></div>
+            <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
+                <div class="stats-header">
+                    <span class="stats-title">STACKS</span>
+                    <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
                 </div>
-                <div class="shelf-search-wrapper" onclick="event.stopPropagation()">
-                    <div class="shelf-search-box">
-                        <span>🔍</span>
-                        <input type="text" id="shelfInnerSearch" placeholder="내 책장에서 검색..." oninput="render()">
+                <div class="stats-expand-area">
+                    <div class="stats-content-layout">
+                        <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
+                        <div class="stats-shelf-list" id="statsShelfList"></div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="control-panel">
-            <div class="control-group"><label style="cursor:pointer;"><input type="checkbox" id="optHorizontal" onchange="render()"> 가로 정렬</label></div>
-            <div class="control-group"><span>VIEW</span><select id="viewMode" onchange="render()"><option value="cover">표지 모드</option><option value="spine">책등 모드</option><option value="text">제목 모드</option></select></div>
-            <button class="btn" id="multiMoveBtn" style="display:none; border-color: var(--accent); color:var(--accent);" onclick="moveSelectedPrompt()">Move Selected</button>
-        </div>
+            <div class="control-panel">
+                <div class="control-group"><label style="cursor:pointer;"><input type="checkbox" id="optHorizontal" onchange="render()"> 가로 정렬</label></div>
+                <div class="control-group"><span>VIEW</span>
+                    <select id="viewMode" onchange="render()">
+                        <option value="cover">표지 모드</option>
+                        <option value="spine">책등 모드</option>
+                        <option value="text">제목 모드</option>
+                    </select>
+                </div>
+            </div>
 
-        <div id="shelfList"><p style="text-align:center; padding:100px; color:var(--text-sub); letter-spacing:0.2em;">DRIVE CONNECTING...</p></div>
+            <div id="shelfList"></div>
+        </section>
+        
+        <section id="loginMessage" style="text-align:center; padding:100px 0;">
+            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 드라이브에 서재 데이터를 안전하게 보관합니다. ✨</p>
+        </section>
     </div>
 
     <button class="help-fab" onclick="toggleGuide(true)">❔</button>
 
-    <div id="guideModal" onclick="toggleGuide(false)">
+    <div id="guideModal" style="display:none;" onclick="toggleGuide(false)">
         <div class="guide-box" onclick="event.stopPropagation()">
             <span class="close-guide" onclick="toggleGuide(false)">✕</span>
             <h3>Book Stack Guide 📚</h3>
-            <p style="margin-top:20px; color:#ccc;">모든 데이터는 사용자의 Google Drive에 'My_BookStack_Data_DO_NOT_DELETE'라는 파일로 자동 저장됩니다.</p>
+            <p style="color:#ccc; line-height:1.6; margin-top:15px;">
+                모든 데이터는 본인의 구글 드라이브에 <b>My_BookStack_Data_DO_NOT_DELETE</b> 파일로 저장됩니다.
+            </p>
+            <button class="btn" style="margin-top:20px;" onclick="toggleGuide(false)">닫기</button>
         </div>
     </div>
 
-    <script>
-        /** --- Google API 설정 --- **/
-        // 중요: 깃헙 페이지 배포 시 아래 CLIENT_ID와 API_KEY를 본인의 Google Cloud Console 값으로 채워야 합니다.
-        const CLIENT_ID = ''; 
-        const API_KEY = '';   
-        const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-        const FILE_NAME = "My_BookStack_Data_DO_NOT_DELETE";
-        const TTB_KEY = 'ttbtwinwhee0938001';
-
-        let tokenClient;
-        let gapiInited = false;
-        let gisInited = false;
-        let fileId = null;
-        let shelves = [];
-        let selectedItems = [];
-        let shelfExpandedStates = {};
-        const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
-
-        function gapiLoaded() { gapi.load('client', async () => { await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] }); gapiInited = true; maybeEnableButtons(); }); }
-        function gisLoaded() { tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPES, callback: '' }); gisInited = true; maybeEnableButtons(); }
-        function maybeEnableButtons() { if (gapiInited && gisInited) { /* Ready to auth */ } }
-        
-        window.onload = () => { gapiLoaded(); gisLoaded(); };
-
-        /** --- 인증 및 드라이브 저장소 로직 --- **/
-        function handleAuthClick() {
-            tokenClient.callback = async (resp) => {
-                if (resp.error !== undefined) throw (resp);
-                document.getElementById('authOverlay').style.display = 'none';
-                await loadDriveData();
-            };
-            if (gapi.client.getToken() === null) tokenClient.requestAccessToken({prompt: 'consent'});
-            else tokenClient.requestAccessToken({prompt: ''});
-        }
-
-        async function loadDriveData() {
-            document.getElementById('syncStatus').innerText = "Searching Drive...";
-            const resp = await gapi.client.drive.files.list({ q: `name = '${FILE_NAME}' and trashed = false`, fields: 'files(id, name)' });
-            const files = resp.result.files;
-            
-            if (files.length > 0) {
-                fileId = files[0].id;
-                const fileData = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
-                shelves = typeof fileData.result === 'string' ? JSON.parse(fileData.result) : fileData.result;
-            } else {
-                shelves = [{ title: 'MY COLLECTION', books: [], color: '#ffffff' }];
-                const metadata = { name: FILE_NAME, mimeType: 'application/json' };
-                const res = await gapi.client.drive.files.create({ resource: metadata, fields: 'id' });
-                fileId = res.result.id;
-                await saveToDrive();
-            }
-            render();
-            document.getElementById('syncStatus').innerText = "Cloud Active";
-        }
-
-        async function saveToDrive() {
-            if (!fileId) return;
-            document.getElementById('syncStatus').innerText = "Syncing...";
-            await gapi.client.request({ path: `/upload/drive/v3/files/${fileId}`, method: 'PATCH', params: { uploadType: 'media' }, body: JSON.stringify(shelves) });
-            document.getElementById('syncStatus').innerText = "Cloud Active";
-        }
-
-        function handleSignoutClick() {
-            const token = gapi.client.getToken();
-            if (token !== null) { google.accounts.oauth2.revoke(token.access_token); gapi.client.setToken(''); location.reload(); }
-        }
-
-        /** --- 알라딘 검색 (JSONP 방식) --- **/
-        function searchAladin() {
-            const query = document.getElementById('kwInput').value;
-            if (!query) return;
-            const results = document.getElementById('searchResults');
-            results.innerHTML = '<p style="font-size:12px; opacity:0.5;">Searching...</p>';
-
-            const callbackName = 'aladinCallback_' + Date.now();
-            window[callbackName] = (data) => {
-                results.innerHTML = '';
-                if (data.item) {
-                    data.item.forEach(i => {
-                        const book = { title: i.title.replace(/<[^>]*>?/gm, ''), cover: i.cover.replace('coversum', 'cover500'), link: i.link, author: i.author ? i.author.split('(지은이)')[0] : "", publisher: i.publisher, pubDate: i.pubDate };
-                        const div = document.createElement('div'); div.className = 'search-item';
-                        const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
-                        div.innerHTML = `<img src="${book.cover}" title="${book.title} - ${book.author}"><p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
-                        div.onclick = () => { const bookData = { ...book, addedDate: new Date().toLocaleDateString(), memo: "" }; shelves[0].books.unshift(bookData); saveToDrive(); render(); };
-                        results.appendChild(div);
-                    });
-                }
-                delete window[callbackName];
-                document.body.removeChild(script);
-            };
-            const script = document.createElement('script');
-            script.src = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(query)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&callback=${callbackName}&Version=20131101`;
-            document.body.appendChild(script);
-        }
-
-        /** --- UI 렌더링 및 기능 (원본 유지) --- **/
-        function toggleGuide(s) { document.getElementById('guideModal').style.display = s ? 'flex' : 'none'; }
-        function toggleStats(e) { if (e.target.tagName === 'INPUT') return; const bar = document.getElementById('statsBar'); const btn = document.getElementById('toggleBtn'); const isCollapsed = bar.classList.toggle('collapsed'); btn.innerText = isCollapsed ? "펼치기" : "접기"; }
-        function toggleShelfExpand(idx) { shelfExpandedStates[idx] = !shelfExpandedStates[idx]; render(); }
-        function clearSearch() { document.getElementById('kwInput').value = ''; document.getElementById('searchResults').innerHTML = ''; }
-        function addShelf() { shelves.push({ title: 'NEW STACK', books: [], color: hipColors[Math.floor(Math.random()*hipColors.length)] }); saveToDrive(); render(); }
-        function deleteShelf(idx) { if (confirm('이 책장을 삭제할까요?')) { shelves.splice(idx, 1); saveToDrive(); render(); } }
-        function updateShelfTitle(idx, val) { shelves[idx].title = val; saveToDrive(); updateStats(); }
-        function togglePalette(e, idx) { e.stopPropagation(); const p = document.getElementById(`palette-${idx}`); p.style.display = (p.style.display==='grid')?'none':'grid'; }
-        function changeShelfColor(idx, color) { shelves[idx].color = color; saveToDrive(); render(); }
-        function deleteBook(e, sIdx, bIdx) { e.stopPropagation(); shelves[sIdx].books.splice(bIdx, 1); saveToDrive(); render(); }
-        function updateMemo(sIdx, bIdx, val) { shelves[sIdx].books[bIdx].memo = val; saveToDrive(); }
-        function exportJSON() { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(shelves)); const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "book_stack_backup.json"); dl.click(); }
-        function sortShelf(sIdx, type) { if (type === 'date_desc') shelves[sIdx].books.sort((a,b) => new Date(b.addedDate) - new Date(a.addedDate)); else if (type === 'date_asc') shelves[sIdx].books.sort((a,b) => new Date(a.addedDate) - new Date(b.addedDate)); else if (type === 'title_asc') shelves[sIdx].books.sort((a,b) => a.title.localeCompare(b.title)); saveToDrive(); render(); }
-
-        function toggleSelect(e, sIdx, bIdx) {
-            e.stopPropagation();
-            const exists = selectedItems.findIndex(si => si.sIdx === sIdx && si.bIdx === bIdx);
-            if (exists > -1) selectedItems.splice(exists, 1);
-            else selectedItems.push({ sIdx, bIdx });
-            document.getElementById('multiMoveBtn').style.display = selectedItems.length > 0 ? 'block' : 'none';
-            render();
-        }
-
-        function moveSelectedPrompt() {
-            if(!selectedItems.length) return;
-            const shelfNames = shelves.map((s, i) => `${i}: ${s.title}`).join('\n');
-            const targetIdx = prompt(`이동할 책장의 번호를 입력하세요:\n${shelfNames}`);
-            if(targetIdx !== null && shelves[targetIdx]) {
-                const targetShelf = shelves[targetIdx];
-                selectedItems.sort((a,b) => b.bIdx - a.bIdx);
-                selectedItems.forEach(item => { const [book] = shelves[item.sIdx].books.splice(item.bIdx, 1); targetShelf.books.unshift(book); });
-                selectedItems = [];
-                saveToDrive(); render();
-            }
-        }
-
-        function render() {
-            const container = document.getElementById('shelfList');
-            if(!container) return;
-            const isHorizontal = document.getElementById('optHorizontal').checked;
-            const viewMode = document.getElementById('viewMode').value;
-            const filterKey = document.getElementById('shelfInnerSearch').value.toLowerCase();
-            container.className = isHorizontal ? 'horizontal-layout' : '';
-            container.innerHTML = '';
-            updateStats();
-
-            new Sortable(container, { animation: 250, handle: '.shelf-drag-handle', onEnd: (evt) => { const moved = shelves.splice(evt.oldIndex, 1)[0]; shelves.splice(evt.newIndex, 0, moved); saveToDrive(); } });
-
-            shelves.forEach((s, sIdx) => {
-                const filteredBooks = s.books.filter(b => b.title.toLowerCase().includes(filterKey) || (b.author && b.author.toLowerCase().includes(filterKey)));
-                if (filterKey && filteredBooks.length === 0) return;
-                const isExpanded = shelfExpandedStates[sIdx] || false;
-                const showExpandBtn = filteredBooks.length > 20;
-                const displayBooks = (showExpandBtn && !isExpanded) ? filteredBooks.slice(0, 20) : filteredBooks;
-
-                const shelfEl = document.createElement('div'); shelfEl.className = 'shelf-wrapper';
-                let contentHtml = '';
-                
-                if (viewMode === 'text') {
-                    contentHtml = `<div class="book-table-container"><table class="book-table"><tbody class="book-grid" data-shelf="${sIdx}">
-                        ${displayBooks.map((b) => {
-                            const realIdx = s.books.indexOf(b);
-                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
-                            const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<tr class="${isSel ? 'selected' : ''}">
-                                <td class="cell-check"><input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleSelect(event, ${sIdx}, ${realIdx})"></td>
-                                <td class="cell-main" onclick="window.open('${b.link}', '_blank')">
-                                    <img class="mini-cover" src="${b.cover}">
-                                    <span>${b.title} ${hasMemo ? '💬' : ''} <small class="author-tag">${b.author || ''}</small></span>
-                                    ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
-                                </td>
-                                <td class="cell-action"><button class="table-btn" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button></td>
-                            </tr>`}).join('')}</tbody></table></div>`;
-                } else if (viewMode === 'spine') {
-                    contentHtml = `<div class="book-grid book-spine-display" data-shelf="${sIdx}">
-                        ${displayBooks.map((b) => {
-                            const realIdx = s.books.indexOf(b);
-                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
-                            const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<div class="book-spine ${isSel ? 'selected' : ''}" onclick="if(!event.target.closest('button')) window.open('${b.link}', '_blank')">
-                                <div class="spine-bg" style="background-image: url('${b.cover}')"></div>
-                                <div class="spine-content"><button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button><div class="spine-text">${hasMemo ? '💬 ' : ''}${b.title}</div></div>
-                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
-                            </div>`}).join('')}</div>`;
-                } else {
-                    contentHtml = `<div class="book-grid book-grid-display" data-shelf="${sIdx}">
-                        ${displayBooks.map((b) => {
-                            const realIdx = s.books.indexOf(b);
-                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
-                            const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<div class="book ${isSel ? 'selected' : ''}" onclick="if(!event.target.closest('button') && !event.target.closest('textarea')) window.open('${b.link}', '_blank')">
-                                <button class="book-select-btn" onclick="toggleSelect(event, ${sIdx}, ${realIdx})">${isSel?'●':'○'}</button>
-                                <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
-                                ${hasMemo ? '<div class="memo-indicator">💬</div>' : ''}
-                                <img src="${b.cover}">
-                                <div class="book-overlay"><div class="book-hover-title">${b.title}</div><div class="book-hover-author">${b.author || ''}</div><div class="book-date">${b.addedDate || ''}</div><textarea class="book-memo-overlay" onclick="event.stopPropagation()" onchange="updateMemo(${sIdx}, ${realIdx}, this.value); render();">${b.memo || ''}</textarea></div>
-                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
-                            </div>`}).join('')}</div>`;
-                }
-
-                let expBtn = showExpandBtn ? `<div class="expand-toggle-wrapper"><button class="btn-expand-shelf" onclick="toggleShelfExpand(${sIdx})">${isExpanded ? '접기 ▲' : `${filteredBooks.length-20}권 더보기 ▼`}</button></div>` : '';
-                shelfEl.innerHTML = `<div class="shelf-drag-handle">⠿</div><div class="shelf-header"><div class="shelf-title-area"><div class="color-dot" style="width:14px; height:14px; border-radius:50%; background:${s.color}; cursor:pointer;" onclick="togglePalette(event, ${sIdx})"></div><input type="text" class="shelf-title" style="color:${s.color}" value="${s.title}" onchange="updateShelfTitle(${sIdx}, this.value)"><div id="palette-${sIdx}" class="color-palette">${hipColors.map(c => `<div class="palette-item" style="background:${c}" onclick="changeShelfColor(${sIdx}, '${c}')"></div>`).join('')}</div></div><div class="shelf-actions"><select onchange="sortShelf(${sIdx}, this.value)" style="background:transparent; border:none; color:var(--text-sub); font-size:10px; cursor:pointer;"><option value="">SORT</option><option value="date_desc">최신순</option><option value="date_asc">과거순</option><option value="title_asc">가나다</option></select><span onclick="deleteShelf(${sIdx})" style="color:#ff4444; font-size:10px; cursor:pointer; opacity:0.6;">DELETE</span></div></div>${contentHtml}${expBtn}`;
-                container.appendChild(shelfEl);
-
-                new Sortable(shelfEl.querySelector(viewMode === 'text' ? 'tbody' : '.book-grid'), { group: 'books', animation: 250, onEnd: (evt) => { if (!evt.to.dataset.shelf) return; const fs = parseInt(evt.from.dataset.shelf); const ts = parseInt(evt.to.dataset.shelf); const [moved] = shelves[fs].books.splice(evt.oldIndex, 1); shelves[ts].books.splice(evt.newIndex, 0, moved); saveToDrive(); render(); } });
-            });
-        }
-
-        function updateStats() {
-            let total = 0; const list = document.getElementById('statsShelfList'); if(!list) return; list.innerHTML = '';
-            shelves.forEach(s => {
-                total += s.books.length; const unit = document.createElement('div'); unit.className = 'stats-shelf-unit'; const vis = document.createElement('div'); vis.className = 'shelf-visual-area';
-                const colCount = Math.ceil(s.books.length / 10) || 1;
-                for (let i = 0; i < colCount; i++) {
-                    const col = document.createElement('div'); col.className = 'stack-column'; const booksInCol = (i === colCount - 1) ? (s.books.length % 10 || (s.books.length > 0 ? 10 : 0)) : 10;
-                    for (let j = 0; j < booksInCol; j++) { const p = document.createElement('div'); p.className = 'stack-piece'; p.style.background = s.color; col.appendChild(p); }
-                    vis.appendChild(col);
-                }
-                unit.innerHTML = `<div class="stats-shelf-info"><span class="stats-shelf-num" style="color:${s.color}">${s.books.length}</span><span class="stats-shelf-title">${s.title}</span></div>`; unit.prepend(vis); list.appendChild(unit);
-            });
-            document.getElementById('totalCount').innerText = total;
-        }
-
-        document.addEventListener('click', () => document.querySelectorAll('.color-palette').forEach(p => p.style.display = 'none'));
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
