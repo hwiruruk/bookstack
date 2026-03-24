@@ -54,17 +54,6 @@
                 </div>
             </div>
 
-            <div class="control-panel">
-                <div class="control-group"><label style="cursor:pointer;"><input type="checkbox" id="optHorizontal" onchange="render()"> 가로 정렬</label></div>
-                <div class="control-group"><span>VIEW</span>
-                    <select id="viewMode" onchange="render()">
-                        <option value="cover">표지 모드</option>
-                        <option value="spine">책등 모드</option>
-                        <option value="text">제목 모드</option>
-                    </select>
-                </div>
-            </div>
-
             <div id="shelfList"></div>
         </section>
         
@@ -80,7 +69,7 @@
             <span class="close-guide" onclick="toggleGuide(false)">✕</span>
             <h3>Book Stack Guide 📚</h3>
             <p style="color:#ccc; line-height:1.6; margin-top:15px;">
-                모든 데이터는 본인의 구글 드라이브에 <b>My_BookStack_Data_DO_NOT_DELETE</b> 파일로 저장됩니다.
+                모든 데이터는 본인의 구글 드라이브에 <b>My_BookStack_Data_DO_NOT_DELETE</b> 파일로 자동 저장됩니다.
             </p>
             <button class="btn" style="margin-top:20px;" onclick="toggleGuide(false)">닫기</button>
         </div>
