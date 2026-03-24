@@ -6,24 +6,21 @@
     <title>Book Stack 📚</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
             <div class="title-container">
-                <div style="width: 24px;">
-                    <div class="logo-bar" style="width: 100%;"></div>
-                    <div class="logo-bar" style="width: 60%;"></div>
-                    <div class="logo-bar" style="width: 85%;"></div>
-                </div>
+                <div style="width: 24px;"><div class="logo-bar" style="width: 100%;"></div><div class="logo-bar" style="width: 60%;"></div><div class="logo-bar" style="width: 85%;"></div></div>
                 <h1 class="title">Book Stack<span>.</span></h1>
             </div>
             <div class="header-buttons">
                 <span id="syncStatus">인증 대기 중...</span>
-                <button id="loginBtn" class="btn btn-new-stack" onclick="handleAuthClick()">Login with Google</button>
-                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleSignoutClick()">Logout</button>
+                <button id="loginBtn" class="btn btn-new-stack" onclick="handleLogin()">Login with Google</button>
+                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleLogout()">Logout</button>
                 <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
             </div>
         </header>
@@ -58,19 +55,16 @@
         </section>
         
         <section id="loginMessage" style="text-align:center; padding:100px 0;">
-            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 드라이브에 서재 데이터를 안전하게 보관합니다. ✨</p>
+            <p style="color:var(--text-sub); letter-spacing:0.1em;">로그인 후 당신만의 서재를 가꾸어보세요. ✨</p>
         </section>
     </div>
 
     <button class="help-fab" onclick="toggleGuide(true)">❔</button>
 
-    <div id="guideModal" style="display:none;" onclick="toggleGuide(false)">
-        <div class="guide-box" onclick="event.stopPropagation()">
-            <span class="close-guide" onclick="toggleGuide(false)">✕</span>
-            <h3>Book Stack Guide 📚</h3>
-            <p style="color:#ccc; line-height:1.6; margin-top:15px;">
-                모든 데이터는 본인의 구글 드라이브에 <b>My_BookStack_Data_DO_NOT_DELETE</b> 파일로 자동 저장됩니다.
-            </p>
+    <div id="guideModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;" onclick="toggleGuide(false)">
+        <div style="background:#111; padding:40px; border-radius:20px; border:1px solid var(--accent); max-width:500px;" onclick="event.stopPropagation()">
+            <h3 style="color:var(--accent); margin-bottom:20px;">Guide</h3>
+            <p style="color:#ccc; line-height:1.6;">구글 로그인 후 책을 검색하여 추가하세요. 드래그로 순서를 바꿀 수 있으며, 클라우드에 자동 저장됩니다.</p>
             <button class="btn" style="margin-top:20px;" onclick="toggleGuide(false)">닫기</button>
         </div>
     </div>
