@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Stack 📚</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="title-container">
+                <div style="width: 24px;"><div class="logo-bar" style="width: 100%;"></div><div class="logo-bar" style="width: 60%;"></div><div class="logo-bar" style="width: 85%;"></div></div>
+                <h1 class="title">Book Stack<span>.</span></h1>
+            </div>
+            <div class="header-buttons">
+                <span id="syncStatus">인증 대기 중...</span>
+                <button id="loginBtn" class="btn btn-new-stack" onclick="handleLogin()">Login with Google</button>
+                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleLogout()">Logout</button>
+                <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
+            </div>
+        </header>
+
+        <section id="mainContent" style="display:none;">
+            <section class="hero-section">
+                <div class="hero-text">
+                    <h2>Book Stack 📚</h2>
+                    <div class="search-box">
+                        <input type="text" id="kwInput" placeholder="새로운 책 검색 및 추가..." onkeypress="if(event.keyCode==13) searchByKeyword()">
+                        <span class="clear-btn" onclick="clearSearch()">✕</span>
+                        <span style="cursor:pointer; opacity:0.7;" onclick="searchByKeyword()">🔍</span>
+                    </div>
+                </div>
+                <div id="searchResults" class="search-results"></div>
+            </section>
+
+            <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
+                <div class="stats-header">
+                    <span class="stats-title">STACKS</span>
+                    <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
+                </div>
+                <div class="stats-expand-area">
+                    <div class="stats-content-layout">
+                        <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
+                        <div class="stats-shelf-list" id="statsShelfList"></div>
+                    </div>
+                    <div class="shelf-search-wrapper" onclick="event.stopPropagation()">
+                        <div class="shelf-search-box">
+                            <span>🔍</span>
+                            <input type="text" id="shelfInnerSearch" placeholder="내 책장에서 검색..." oninput="render()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <div class="control-group"><label style="cursor:pointer;"><input type="checkbox" id="optHorizontal" onchange="render()"> 가로 정렬</label></div>
+                <div class="control-group"><span>VIEW</span><select id="viewMode" onchange="render()"><option value="cover">표지 모드</option><option value="spine">책등 모드</option><option value="text">제목 모드</option></select></div>
+            </div>
+
+            <div id="shelfList"></div>
+        </section>
+        
+        <section id="loginMessage" style="text-align:center; padding:100px 0;">
+            <p style="color:var(--text-sub); letter-spacing:0.1em;">로그인 후 당신만의 서재를 가꾸어보세요. ✨</p>
+        </section>
+    </div>
+
+    <button class="help-fab" onclick="toggleGuide(true)">❔</button>
+    <script src="script.js"></script>
+</body>
+</html>
