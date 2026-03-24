@@ -1,50 +1,62 @@
-// 1. 환경 설정 및 인증 정보
 const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyB-d-Jw314oAqlBihwV05rr1zQfSJ9CoeQ';
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const TTB_KEY = 'ttbtwinwhee0938001';
-
-// 파일 이름을 이전 GAS 코드와 일관성 있게 수정했습니다.
-const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE'; 
+const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE';
 
 let tokenClient, gapiInited = false, gisInited = false, shelves = [], fileId = null, folderId = null;
 const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
 
-// 2. 초기화 (신경망 가동)
 window.onload = () => {
     gapi.load('client', async () => {
         await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
         gapiInited = true;
-        updateStatus();
+        checkPersistentLogin(); // 기존 로그인 확인 
     });
     tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID, scope: SCOPES, callback: '',
+        client_id: CLIENT_ID, scope: SCOPES, callback: async (resp) => {
+            if (resp.error) return;
+            // 토큰을 로컬 스토리지에 저장하여 새로고침 시 사용합니다. 
+            localStorage.setItem('gapi_token', JSON.stringify(resp));
+            await afterLoggedIn();
+        },
     });
     gisInited = true;
 };
 
-function updateStatus() {
-    if (gapiInited && gisInited) document.getElementById('syncStatus').innerText = "연결 준비 완료";
+// 새로고침 시 자동 로그인 시도 
+async function checkPersistentLogin() {
+    const savedToken = localStorage.getItem('gapi_token');
+    if (savedToken) {
+        const token = JSON.parse(savedToken);
+        gapi.client.setToken(token);
+        await afterLoggedIn();
+    } else {
+        document.getElementById('syncStatus').innerText = "연결 준비 완료";
+    }
 }
 
-// 3. 로그인 및 드라이브 연결
+async function afterLoggedIn() {
+    document.getElementById('loginBtn').style.display = 'none';
+    document.getElementById('userActions').style.display = 'flex';
+    document.getElementById('mainContent').style.display = 'block';
+    document.getElementById('loginMessage').style.display = 'none';
+    await initDriveFolder();
+}
+
 function handleLogin() {
-    tokenClient.callback = async (resp) => {
-        if (resp.error) return;
-        document.getElementById('loginBtn').style.display = 'none';
-        document.getElementById('userActions').style.display = 'flex';
-        document.getElementById('mainContent').style.display = 'block';
-        document.getElementById('loginMessage').style.display = 'none';
-        await initDriveFolder(); // 폴더와 파일 확인 시작
-    };
     tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
-// 4. 폴더 및 파일 관리 (데이터 대사 작용)
+function handleLogout() {
+    localStorage.removeItem('gapi_token');
+    location.reload();
+}
+
+// 1. BookStack 폴더 초기화 
 async function initDriveFolder() {
     try {
-        // 'BookStack' 이라는 이름의 일반 폴더를 찾습니다.
         const res = await gapi.client.drive.files.list({
             q: "name = 'BookStack' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
             fields: 'files(id, name)'
@@ -53,18 +65,19 @@ async function initDriveFolder() {
         if (res.result.files.length > 0) {
             folderId = res.result.files[0].id;
         } else {
-            // 폴더가 없으면 새로 생성합니다.
             const folderMetadata = { 'name': 'BookStack', 'mimeType': 'application/vnd.google-apps.folder' };
             const folder = await gapi.client.drive.files.create({ resource: folderMetadata, fields: 'id' });
             folderId = folder.result.id;
         }
         await loadData();
-    } catch (err) { console.error("Folder Init Error", err); }
+    } catch (err) {
+        console.error("폴더 생성 오류:", err);
+        if (err.status === 401) handleLogout(); // 토큰 만료 시 로그아웃 
+    }
 }
 
 async function loadData() {
     try {
-        // 지정하신 이름(My_BookStack_Data_DO_NOT_DELETE)의 파일을 찾습니다.
         const res = await gapi.client.drive.files.list({
             q: `name = '${DATA_FILE_NAME}' and '${folderId}' in parents and trashed = false`,
             fields: 'files(id, name)'
@@ -79,17 +92,15 @@ async function loadData() {
             await save();
         }
         render();
-    } catch (err) { console.error("Load Error", err); }
+    } catch (err) { console.error("데이터 로드 오류", err); }
 }
 
 async function save() {
     if (!gapi.client.getToken()) return;
-    document.getElementById('syncStatus').innerText = "기록 중...";
+    document.getElementById('syncStatus').innerText = "저장 중...";
     const metadata = { 'name': DATA_FILE_NAME, 'parents': [folderId] };
     const data = { shelves: shelves, lastUpdated: new Date() };
     const boundary = 'foo_bar_baz';
-    
-    // 멀티파트 바디 구성 (파일 이름과 데이터를 함께 전송)
     const body = `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(data)}\r\n--${boundary}--`;
 
     try {
@@ -101,10 +112,9 @@ async function save() {
         });
         if (!fileId) fileId = res.result.id;
         document.getElementById('syncStatus').innerText = "동기화 완료";
-    } catch (err) { document.getElementById('syncStatus').innerText = "기록 실패"; }
+    } catch (err) { document.getElementById('syncStatus').innerText = "저장 실패"; }
 }
 
-// 5. 검색 및 UI 렌더링 (운동 작용)
 async function searchByKeyword() {
     const kw = document.getElementById('kwInput').value;
     if (!kw) return;
@@ -159,6 +169,5 @@ function render() {
 function addShelf() { shelves.push({ title: 'NEW STACK', books: [], color: hipColors[Math.floor(Math.random()*hipColors.length)] }); save(); render(); }
 function deleteShelf(idx) { if(confirm("책장을 삭제할까요?")) { shelves.splice(idx, 1); save(); render(); } }
 function deleteBook(sIdx, bIdx) { shelves[sIdx].books.splice(bIdx, 1); save(); render(); }
-function handleLogout() { gapi.client.setToken(''); location.reload(); }
 function toggleStats() { document.getElementById('statsBar').classList.toggle('collapsed'); }
 function clearSearch() { document.getElementById('kwInput').value = ''; document.getElementById('searchResults').innerHTML = ''; }
