@@ -622,19 +622,28 @@
             results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 중...</p>';
 
             // 알라딘 OpenAPI는 CORS를 허용하지 않으므로 프록시를 통해 호출합니다.
+            // 단일 프록시가 느려지는 경우를 대비해 여러 프록시에 동시 요청 후 먼저 오는 응답을 사용합니다.
             const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+            const proxyUrls = [
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
+                `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`
+            ];
 
             // 타임아웃 처리 (10초)
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 10000);
 
             try {
-                const res = await fetch(proxyUrl, { signal: controller.signal });
+                const responseText = await Promise.any(proxyUrls.map(async (url) => {
+                    const res = await fetch(url, { signal: controller.signal });
+                    if (!res.ok) throw new Error('proxy error ' + res.status);
+                    return res.text();
+                }));
                 clearTimeout(timeout);
-                if (!res.ok) throw new Error('Network response was not ok');
-                const rawData = await res.json();
-                let content = (rawData.contents || '').trim();
+                // 다른 프록시 요청들도 더 이상 필요 없으므로 취소
+                controller.abort();
+
+                let content = (responseText || '').trim();
                 if (content.endsWith(';')) content = content.substring(0, content.length - 1);
                 const data = JSON.parse(content);
                 const items = data.item || [];
@@ -642,7 +651,9 @@
                 renderSearchResults(items, results);
             } catch (e) {
                 clearTimeout(timeout);
-                const msg = e.name === 'AbortError'
+                const aborted = e.name === 'AbortError' ||
+                    (e.name === 'AggregateError' && e.errors && e.errors.some(err => err.name === 'AbortError'));
+                const msg = aborted
                     ? '검색 시간이 초과되었습니다. 다시 시도해주세요.'
                     : '검색에 실패했습니다. 다시 시도해주세요.';
                 results.innerHTML = `<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">${msg}</p>`;
@@ -651,6 +662,15 @@
 
         function renderSearchResults(items, results) {
             results.innerHTML = '';
+            if (items.length === 0) {
+                results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 결과가 없습니다.</p>';
+                return;
+            }
+            // 보유중 판정을 위한 제목 Set을 한 번만 구축 (검색 요청과는 분리된 로컬 연산)
+            const ownedTitles = new Set();
+            for (const s of shelves) for (const b of s.books) ownedTitles.add(b.title);
+
+            const frag = document.createDocumentFragment();
             items.forEach(i => {
                 const book = {
                     title: i.title.replace(/<[^>]*>?/gm, ''),
@@ -662,15 +682,13 @@
                 };
                 const div = document.createElement('div');
                 div.className = 'search-item';
-                const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
+                const isExist = ownedTitles.has(book.title);
                 div.innerHTML = `<img src="${book.cover}" loading="lazy" title="${book.title} - ${book.author}">
                                  <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
                 div.onclick = () => addBookToShelf(book);
-                results.appendChild(div);
+                frag.appendChild(div);
             });
-            if (items.length === 0) {
-                results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 결과가 없습니다.</p>';
-            }
+            results.appendChild(frag);
         }
 
         function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
