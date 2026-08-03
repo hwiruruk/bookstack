@@ -168,7 +168,15 @@
         .book { position: relative; transition: 0.4s cubic-bezier(0.2, 1, 0.3, 1); cursor: pointer; }
         .book.selected { border-radius: 4px; box-shadow: 0 0 0 3px var(--accent); }
         .book:hover { transform: translateY(-10px); }
-        .book img { width: 100%; height: auto; border-radius: 4px; box-shadow: 5px 10px 20px rgba(0,0,0,0.6); display: block; }
+        .book img { width: 100%; aspect-ratio: 200 / 290; object-fit: cover; background: #1a1a1a; border-radius: 4px; box-shadow: 5px 10px 20px rgba(0,0,0,0.6); display: block; }
+        .book-cover-fallback {
+            width: 100%; aspect-ratio: 200 / 290; border-radius: 4px;
+            background: linear-gradient(160deg, #262626, #121212);
+            border: 1px solid #2e2e2e; box-shadow: 5px 10px 20px rgba(0,0,0,0.6);
+            display: flex; flex-direction: column; justify-content: center; padding: 14px;
+        }
+        .book-cover-fallback .fb-title { font-size: 0.85rem; font-weight: 700; color: #ddd; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+        .book-cover-fallback .fb-author { font-size: 0.7rem; color: var(--text-sub); margin-top: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
         .memo-popup {
             position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
@@ -422,6 +430,46 @@
         function debouncedRender() {
             clearTimeout(renderTimer);
             renderTimer = setTimeout(() => render(), 200);
+        }
+
+        // 제목/저자/메모에 <, ", ' 등이 들어가면 마크업이 깨져 레이아웃이 비어 보일 수 있으므로 이스케이프
+        function esc(str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // 표지 이미지 마크업. 표지가 아예 없으면 제목 플레이스홀더를 바로 그린다.
+        function coverHtml(b) {
+            if (!b.cover) {
+                return `<div class="book-cover-fallback"><div class="fb-title">${esc(b.title)}</div><div class="fb-author">${esc(b.author || '')}</div></div>`;
+            }
+            return `<img src="${esc(b.cover)}" loading="lazy" onerror="coverError(this)" data-title="${esc(b.title)}" data-author="${esc(b.author || '')}">`;
+        }
+
+        // 표지 로딩 실패 시: cover500 → coversum(원본 해상도)으로 재시도 후,
+        // 그래도 실패하면 제목 플레이스홀더로 교체해 그리드에 빈칸이 생기지 않게 한다.
+        function coverError(img) {
+            if (!img.dataset.fbStep && img.src.includes('cover500')) {
+                img.dataset.fbStep = '1';
+                img.src = img.src.replace('cover500', 'coversum');
+                return;
+            }
+            if (img.classList.contains('mini-cover')) { img.style.visibility = 'hidden'; return; }
+            const fb = document.createElement('div');
+            fb.className = 'book-cover-fallback';
+            fb.innerHTML = `<div class="fb-title">${esc(img.dataset.title || '표지 없음')}</div><div class="fb-author">${esc(img.dataset.author || '')}</div>`;
+            img.replaceWith(fb);
+        }
+
+        // addedDate("2026. 8. 3." 등 로캘 문자열)는 new Date()로 파싱이 안 되어
+        // 날짜 정렬이 동작하지 않으므로 안전하게 타임스탬프로 변환
+        function bookTime(b) {
+            if (b.addedAt) { const t = Date.parse(b.addedAt); if (!isNaN(t)) return t; }
+            if (!b.addedDate) return 0;
+            let t = Date.parse(b.addedDate);
+            if (!isNaN(t)) return t;
+            const m = String(b.addedDate).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+            if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+            return 0;
         }
 
         window.onload = () => {
@@ -684,8 +732,8 @@
                 const div = document.createElement('div');
                 div.className = 'search-item';
                 const isExist = ownedTitles.has(book.title);
-                div.innerHTML = `<img src="${book.cover}" loading="lazy" title="${book.title} - ${book.author}">
-                                 <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
+                div.innerHTML = `<img src="${esc(book.cover)}" loading="lazy" onerror="coverError(this)" data-title="${esc(book.title)}" data-author="${esc(book.author)}" title="${esc(book.title)} - ${esc(book.author)}">
+                                 <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${esc(book.title)}</p>`;
                 div.onclick = () => addBookToShelf(book);
                 frag.appendChild(div);
             });
@@ -720,9 +768,16 @@
             new Sortable(container, {
                 animation: 250, handle: '.shelf-drag-handle', scroll: true,
                 onEnd: (evt) => {
-                    const movedItem = shelves.splice(evt.oldIndex, 1)[0];
-                    shelves.splice(evt.newIndex, 0, movedItem);
-                    save();
+                    // 내부 검색으로 일부 책장이 화면에서 숨겨질 수 있으므로,
+                    // DOM 인덱스가 아닌 각 요소에 기록된 실제 배열 인덱스(data-sidx)로 계산한다.
+                    const oldS = parseInt(evt.item.dataset.sidx);
+                    if (isNaN(oldS)) return;
+                    const prev = evt.item.previousElementSibling;
+                    let newS = (prev && prev.dataset.sidx !== undefined) ? parseInt(prev.dataset.sidx) + 1 : 0;
+                    const movedItem = shelves.splice(oldS, 1)[0];
+                    if (oldS < newS) newS--;
+                    shelves.splice(newS, 0, movedItem);
+                    save(); render();
                 }
             });
 
@@ -740,6 +795,7 @@
 
                 const shelfEl = document.createElement('div');
                 shelfEl.className = 'shelf-wrapper';
+                shelfEl.dataset.sidx = sIdx;
                 
                 let contentHtml = '';
                 if (viewMode === 'text') {
@@ -748,12 +804,12 @@
                             const realIdx = s.books.indexOf(b);
                             const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
                             const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<tr class="${isSel ? 'selected' : ''}">
+                            return `<tr class="${isSel ? 'selected' : ''}" data-idx="${realIdx}">
                                 <td class="cell-check"><input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleSelect(event, ${sIdx}, ${realIdx})"></td>
                                 <td class="cell-main" onclick="window.open('${b.link}', '_blank')">
-                                    <img class="mini-cover" src="${b.cover}" loading="lazy">
-                                    <span>${b.title} ${hasMemo ? '💬' : ''} <small class="author-tag">${b.author || ''}</small></span>
-                                    ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                                    <img class="mini-cover" src="${esc(b.cover || '')}" loading="lazy" onerror="coverError(this)">
+                                    <span>${esc(b.title)} ${hasMemo ? '💬' : ''} <small class="author-tag">${esc(b.author || '')}</small></span>
+                                    ${hasMemo ? `<div class="memo-popup">${esc(b.memo)}</div>` : ''}
                                 </td>
                                 <td class="cell-action"><button class="table-btn" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button></td>
                             </tr>`}).join('')}</tbody></table></div>`;
@@ -763,13 +819,13 @@
                             const realIdx = s.books.indexOf(b);
                             const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
                             const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<div class="book-spine ${isSel ? 'selected' : ''}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
-                                <div class="spine-bg" style="background-image: url('${b.cover}')"></div>
+                            return `<div class="book-spine ${isSel ? 'selected' : ''}" data-idx="${realIdx}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
+                                ${b.cover ? `<div class="spine-bg" style="background-image: url('${esc(b.cover)}')"></div>` : ''}
                                 <div class="spine-content">
                                     <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
-                                    <div class="spine-text">${hasMemo ? '💬 ' : ''}${b.title}</div>
+                                    <div class="spine-text">${hasMemo ? '💬 ' : ''}${esc(b.title)}</div>
                                 </div>
-                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                                ${hasMemo ? `<div class="memo-popup">${esc(b.memo)}</div>` : ''}
                             </div>`}).join('')}</div>`;
                 } else {
                     contentHtml = `<div class="book-grid book-grid-display" data-shelf="${sIdx}">
@@ -777,13 +833,13 @@
                             const realIdx = s.books.indexOf(b);
                             const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
                             const hasMemo = b.memo && b.memo.trim().length > 0;
-                            return `<div class="book ${isSel ? 'selected' : ''}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
+                            return `<div class="book ${isSel ? 'selected' : ''}" data-idx="${realIdx}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
                                 <button class="book-select-btn" onclick="toggleSelect(event, ${sIdx}, ${realIdx})">${isSel?'●':'○'}</button>
                                 <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
                                 ${hasMemo ? '<div class="memo-indicator">💬</div>' : ''}
-                                <img src="${b.cover}" loading="lazy">
-                                <div class="book-overlay"><div class="book-hover-title">${b.title}</div><div class="book-hover-author">${b.author || ''}</div><div class="book-date">${b.addedDate || ''}</div><textarea class="book-memo-overlay" onclick="event.stopPropagation()" onchange="updateMemo(${sIdx}, ${realIdx}, this.value); render();">${b.memo || ''}</textarea></div>
-                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                                ${coverHtml(b)}
+                                <div class="book-overlay"><div class="book-hover-title">${esc(b.title)}</div><div class="book-hover-author">${esc(b.author || '')}</div><div class="book-date">${b.addedDate || ''}</div><textarea class="book-memo-overlay" onclick="event.stopPropagation()" onchange="updateMemo(${sIdx}, ${realIdx}, this.value); render();">${esc(b.memo || '')}</textarea></div>
+                                ${hasMemo ? `<div class="memo-popup">${esc(b.memo)}</div>` : ''}
                             </div>`}).join('')}</div>`;
                 }
 
@@ -799,7 +855,7 @@
                 }
 
                 shelfEl.innerHTML = `<div class="shelf-drag-handle">⠿</div><div class="shelf-header">
-                        <div class="shelf-title-area"><div class="color-dot" style="width:14px; height:14px; border-radius:50%; background:${s.color || '#ffffff'}; cursor:pointer;" onclick="togglePalette(event, ${sIdx})"></div><input type="text" class="shelf-title" style="color:${s.color || '#ffffff'}" value="${s.title}" onchange="updateShelfTitle(${sIdx}, this.value)"><div id="palette-${sIdx}" class="color-palette">${hipColors.map(c => `<div class="palette-item" style="background:${c}" onclick="changeShelfColor(${sIdx}, '${c}')"></div>`).join('')}</div></div>
+                        <div class="shelf-title-area"><div class="color-dot" style="width:14px; height:14px; border-radius:50%; background:${s.color || '#ffffff'}; cursor:pointer;" onclick="togglePalette(event, ${sIdx})"></div><input type="text" class="shelf-title" style="color:${s.color || '#ffffff'}" value="${esc(s.title)}" onchange="updateShelfTitle(${sIdx}, this.value)"><div id="palette-${sIdx}" class="color-palette">${hipColors.map(c => `<div class="palette-item" style="background:${c}" onclick="changeShelfColor(${sIdx}, '${c}')"></div>`).join('')}</div></div>
                         <div class="shelf-actions"><select onchange="sortShelf(${sIdx}, this.value)" style="background:transparent; border:none; color:var(--text-sub); font-size:10px; cursor:pointer;"><option value="">SORT</option><option value="date_desc">최신순</option><option value="date_asc">과거순</option><option value="title_asc">가나다</option></select><span onclick="deleteShelf(${sIdx})" style="color:#ff4444; font-size:10px; cursor:pointer; opacity:0.6;">DELETE</span></div>
                     </div>${contentHtml}${expandBtnHtml}`;
                 container.appendChild(shelfEl);
@@ -811,8 +867,15 @@
                         if (!evt.to.dataset.shelf) return;
                         const fromS = parseInt(evt.from.dataset.shelf);
                         const toS = parseInt(evt.to.dataset.shelf);
-                        const [moved] = shelves[fromS].books.splice(evt.oldIndex, 1);
-                        shelves[toS].books.splice(evt.newIndex, 0, moved);
+                        // 필터/20권 접기 상태에서는 화면에 일부 책만 보이므로,
+                        // DOM 인덱스가 아닌 실제 배열 인덱스(data-idx) 기준으로 위치를 계산한다.
+                        const oldIdx = parseInt(evt.item.dataset.idx);
+                        if (isNaN(oldIdx)) return;
+                        const prev = evt.item.previousElementSibling;
+                        let newIdx = (prev && prev.dataset.idx !== undefined) ? parseInt(prev.dataset.idx) + 1 : 0;
+                        const [moved] = shelves[fromS].books.splice(oldIdx, 1);
+                        if (fromS === toS && oldIdx < newIdx) newIdx--;
+                        shelves[toS].books.splice(newIdx, 0, moved);
                         save(); render();
                     }
                 });
@@ -844,7 +907,7 @@
         }
 
         function addBookToShelf(book) {
-            const bookData = { ...book, addedDate: new Date().toLocaleDateString(), memo: "" };
+            const bookData = { ...book, addedDate: new Date().toLocaleDateString(), addedAt: new Date().toISOString(), memo: "" };
             if(shelves.length === 0) shelves.push({ title: 'MY COLLECTION', books: [], color: '#ffffff' });
             shelves[0].books.unshift(bookData);
             save(); render();
@@ -860,9 +923,9 @@
         function updateMemo(sIdx, bIdx, val) { shelves[sIdx].books[bIdx].memo = val; save(); }
         
         function sortShelf(sIdx, type) {
-            if (type === 'date_desc') shelves[sIdx].books.sort((a,b) => new Date(b.addedDate) - new Date(a.addedDate));
-            else if (type === 'date_asc') shelves[sIdx].books.sort((a,b) => new Date(a.addedDate) - new Date(b.addedDate));
-            else if (type === 'title_asc') shelves[sIdx].books.sort((a,b) => a.title.localeCompare(b.title));
+            if (type === 'date_desc') shelves[sIdx].books.sort((a,b) => bookTime(b) - bookTime(a));
+            else if (type === 'date_asc') shelves[sIdx].books.sort((a,b) => bookTime(a) - bookTime(b));
+            else if (type === 'title_asc') shelves[sIdx].books.sort((a,b) => (a.title || '').localeCompare(b.title || '', 'ko'));
             save(); render();
         }
 
