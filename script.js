@@ -2,8 +2,11 @@
 const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-const TTB_KEY = 'ttbtwinwhee0938002';
 const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE';
+// 예스24 Open API는 X-Api-Key 헤더 인증이라 브라우저에서 직접 호출할 수 없다.
+// API Key는 절대 여기 두지 않고, 사용자가 배포한 Cloudflare Worker(프록시)의
+// URL만 localStorage에 저장해 둔다. 배포 방법: tools/yes24-proxy/README.md
+const YES24_PROXY_KEY = 'yes24ProxyUrl';
 
 let tokenClient, gapiInited = false, gisInited = false, shelves = [], fileId = null;
 const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
@@ -138,34 +141,62 @@ function render() {
     if (totalCountEl) totalCountEl.innerText = shelves.reduce((acc, cur) => acc + cur.books.length, 0);
 }
 
+// 예스24 프록시 Worker URL 설정. API Key 자체는 절대 여기 저장하지 않고,
+// Worker 환경변수에만 둔다. 배포 방법: tools/yes24-proxy/README.md
+function configureYes24Proxy() {
+    const current = localStorage.getItem(YES24_PROXY_KEY) || '';
+    const input = prompt(
+        '예스24 도서 검색을 쓰려면 Cloudflare Worker 프록시 URL이 필요합니다.\n' +
+        '(예스24 Open API는 서버 인증 방식이라 브라우저에서 직접 호출할 수 없습니다.)\n' +
+        '아직 Worker가 없다면 tools/yes24-proxy/README.md를 참고해 배포하세요.\n\n' +
+        'Worker URL (예: https://yes24-proxy.내계정.workers.dev):',
+        current
+    );
+    if (input === null) return; // 취소
+    const url = input.trim().replace(/\/+$/, '');
+    if (url) localStorage.setItem(YES24_PROXY_KEY, url);
+    else localStorage.removeItem(YES24_PROXY_KEY);
+    alert(url ? '저장되었습니다.' : '설정이 삭제되었습니다.');
+}
+
 async function searchByKeyword() {
     const kw = document.getElementById('kwInput').value;
     if (!kw) return;
-    const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+    const results = document.getElementById('searchResults');
+
+    const proxyUrl = (localStorage.getItem(YES24_PROXY_KEY) || '').trim().replace(/\/+$/, '');
+    if (!proxyUrl) {
+        results.innerHTML = '<p style="color:#ff4444;">예스24 프록시 Worker URL이 설정되지 않았습니다. configureYes24Proxy()로 등록해주세요.</p>';
+        return;
+    }
+
+    // 예스24 Open API는 X-Api-Key 헤더 인증이라 브라우저가 직접 부를 수 없으므로,
+    // 사용자가 배포한 Cloudflare Worker(프록시)를 거쳐 호출한다. Worker가 대신
+    // X-Api-Key를 붙여 https://apis.yes24.com/v1/goods/itemList 를 호출해 준다.
+    const params = new URLSearchParams({ query: kw, category: 'BOOK', pageSize: '15', detail: 'N' });
+    const apiUrl = `${proxyUrl}/goods/itemList?${params.toString()}`;
     try {
-        const response = await fetch(proxyUrl);
-        const rawData = await response.json();
-        let content = rawData.contents.trim();
-        if (content.endsWith(';')) content = content.substring(0, content.length - 1);
-        const data = JSON.parse(content);
-        const results = document.getElementById('searchResults');
-        results.innerHTML = '';
-        if (data.item) {
-            data.item.forEach(i => {
-                const book = { title: i.title.replace(/<[^>]*>?/gm, ''), cover: i.cover.replace('coversum', 'cover500'), author: i.author.split('(지은이)')[0], addedDate: new Date().toLocaleDateString(), memo: "" };
-                const div = document.createElement('div');
-                div.className = 'search-item';
-                div.innerHTML = `<img src="${book.cover}">`;
-                div.onclick = () => { 
-                    if(shelves.length === 0) shelves.push({ title: 'MY COLLECTION', books: [], color: '#ffffff' });
-                    shelves[0].books.unshift(book); 
-                    save(); render(); 
-                };
-                results.appendChild(div);
-            });
+        const response = await fetch(apiUrl);
+        const body = await response.json();
+        if (!body || body.success !== true) {
+            throw new Error(body?.message || `HTTP ${response.status}`);
         }
-    } catch (e) { console.error("검색 오류"); }
+        const items = (body.data && body.data.items) || [];
+        results.innerHTML = '';
+        items.forEach(i => {
+            // 예스24 응답의 cover는 이미 큰 이미지 URL이라 별도 업그레이드가 필요 없다.
+            const book = { title: (i.title || '').replace(/<[^>]*>?/gm, ''), cover: i.cover || '', author: i.author || '', addedDate: new Date().toLocaleDateString(), memo: "" };
+            const div = document.createElement('div');
+            div.className = 'search-item';
+            div.innerHTML = `<img src="${book.cover}">`;
+            div.onclick = () => {
+                if(shelves.length === 0) shelves.push({ title: 'MY COLLECTION', books: [], color: '#ffffff' });
+                shelves[0].books.unshift(book);
+                save(); render();
+            };
+            results.appendChild(div);
+        });
+    } catch (e) { console.error("검색 오류:", e.message); }
 }
 
 function addShelf() { shelves.push({ title: 'NEW STACK', books: [], color: hipColors[Math.floor(Math.random()*hipColors.length)] }); save(); render(); }
